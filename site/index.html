@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TT CSV Viewer</title>
+    <title>TT CSV Viewer | V0.0.3</title>
     <style>
         :root {
             --bg-color: #f8f9fa;
@@ -23,7 +23,7 @@
         body {
             font-family: var(--font-family);
             display: flex;
-            height: 100vh; /* Full viewport height for desktop layout */
+            height: 100vh;
             margin: 0;
             background-color: var(--bg-color);
             color: var(--text-color);
@@ -31,15 +31,16 @@
         }
 
         .controls-frame {
-            width: 300px;
+            width: 320px; /* Slightly wider for new filter layout */
             padding: 20px;
             background-color: var(--panel-bg-color);
-            overflow-y: auto; /* For controls panel if its content exceeds its height */
+            /* overflow-y: auto; REMOVED - let inner components handle scrolling or page scroll */
             border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
             box-shadow: 2px 0 5px rgba(0,0,0,0.05);
-            flex-shrink: 0; /* Prevent controls frame from shrinking */
+            flex-shrink: 0;
+            /* Height determined by content, up to 100vh due to body flex */
         }
 
         .data-view-frame {
@@ -47,7 +48,7 @@
             padding: 20px;
             display: flex;
             flex-direction: column;
-            overflow: hidden; /* Crucial for internal table scrolling */
+            overflow: hidden;
         }
 
         .control-group {
@@ -67,77 +68,85 @@
         }
 
         #csvFileInput {
-            display: block;
-            width: 100%;
-            padding: 10px 12px; /* Slightly more padding */
-            margin-bottom: 10px;
-            box-sizing: border-box;
-            border: 1px solid var(--border-color);
-            border-radius: 4px;
-            background-color: white;
-            cursor: pointer;
+            display: block; width: 100%; padding: 10px 12px; margin-bottom: 10px;
+            box-sizing: border-box; border: 1px solid var(--border-color); border-radius: 4px;
+            background-color: white; cursor: pointer;
             transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
             font-size: 0.95em;
         }
-        #csvFileInput:hover {
-            border-color: #adb5bd;
-        }
+        #csvFileInput:hover { border-color: #adb5bd; }
         #csvFileInput::file-selector-button {
-            padding: 10px 12px;
-            margin: -10px -12px -10px 10px;
-            border: none;
-            border-left: 1px solid var(--border-color);
-            background-color: var(--table-header-bg);
-            color: var(--text-color);
-            cursor: pointer;
-            transition: background-color 0.15s ease-in-out;
+            padding: 10px 12px; margin: -10px -12px -10px 10px; border: none;
+            border-left: 1px solid var(--border-color); background-color: var(--table-header-bg);
+            color: var(--text-color); cursor: pointer; transition: background-color 0.15s ease-in-out;
         }
-        #csvFileInput::file-selector-button:hover {
-            background-color: #ced4da;
+        #csvFileInput::file-selector-button:hover { background-color: #ced4da; }
+
+        .track-filter-item { margin-bottom: 12px; }
+        .track-filter-item label {
+            margin-left: 5px; margin-right: 15px; font-weight: normal;
+            cursor: pointer; vertical-align: middle; line-height: 1.5;
+        }
+        .track-filter-item input[type="checkbox"] {
+            margin-right: 4px; cursor: pointer; vertical-align: middle;
+            accent-color: var(--primary-color); transform: scale(1.1);
+        }
+         .track-filter-item input[type="checkbox"]:focus {
+            outline: 2px solid var(--input-focus-border); outline-offset: 1px;
         }
 
-        .track-filter-item,
+
+        /* === Boolean Filter Item Styling === */
         .boolean-filter-item {
-            margin-bottom: 12px;
+            display: flex; /* Align label and radio group on one line */
+            justify-content: space-between; /* Pushes label left, radios right */
+            align-items: center; /* Vertically center them */
+            margin-bottom: 10px;
+            padding: 4px 0; /* Add a little vertical padding */
         }
-
-        .boolean-filter-item > label {
-            display: block;
+        .boolean-filter-item > label { /* The "ATTRIBUTE_NAME:" label */
             font-weight: 500;
-            margin-bottom: 6px;
             color: var(--text-muted-color);
+            margin-right: 10px; /* Space between attribute name and radio buttons */
+            flex-shrink: 0; /* Prevent label from shrinking too much */
         }
-
-        .radio-group label, .track-filter-item label {
-            margin-left: 5px;
-            margin-right: 15px;
+        .radio-group {
+            display: flex; /* Keep radio buttons and their labels inline */
+            align-items: center;
+            flex-shrink: 1; /* Allow radio group to shrink if needed, but not too aggressively */
+            white-space: nowrap; /* Prevent radio options from wrapping */
+        }
+        .radio-group label {
+            margin-left: 3px; /* Space after radio button */
+            margin-right: 8px; /* Space after radio label */
             font-weight: normal;
             cursor: pointer;
             vertical-align: middle;
-            line-height: 1.5; /* Improved touch friendliness */
+            font-size: 0.95em;
         }
-        .radio-group input[type="radio"], .track-filter-item input[type="checkbox"] {
-            margin-right: 4px; /* Increased spacing */
+        .radio-group input[type="radio"] {
+            margin-right: 0; /* Radio button is directly before its label */
             cursor: pointer;
             vertical-align: middle;
             accent-color: var(--primary-color);
-            transform: scale(1.1); /* Slightly larger controls */
+            transform: scale(1.1);
         }
-        .radio-group input[type="radio"]:focus, .track-filter-item input[type="checkbox"]:focus {
-            outline: 2px solid var(--input-focus-border);
-            outline-offset: 1px;
+         .radio-group input[type="radio"]:focus {
+            outline: 2px solid var(--input-focus-border); outline-offset: 1px;
         }
 
-        /* This fieldset grows to take available space in controls-frame */
-        .control-group.flexible-group {
-            flex-grow: 1;
+
+        /* === Scrolling for Attribute Filters (Desktop) === */
+        .control-group.flexible-group { /* This fieldset holds boolean filters */
+            flex-grow: 1; /* Takes available vertical space in .controls-frame */
             display: flex;
             flex-direction: column;
-            min-height: 150px; /* Ensure it has some minimum height */
+            min-height: 150px; /* Ensure it has some space even if other content is small */
+            overflow: hidden; /* Prevent its own scrollbar if #boolean-filters-container handles it */
         }
         #boolean-filters-container {
             flex-grow: 1; /* Takes available space within its parent fieldset */
-            overflow-y: auto;
+            overflow-y: auto; /* THIS is the scrollbar for the list of boolean attributes */
             padding-right: 10px; /* Space for scrollbar */
         }
         #boolean-filters-container::-webkit-scrollbar { width: 8px; }
@@ -147,136 +156,100 @@
 
 
         .table-container {
-            flex-grow: 1; /* Takes available space in data-view-frame */
-            overflow: auto; /* This is key for table scrolling */
-            border: 1px solid var(--border-color);
-            border-radius: 8px;
-            background-color: var(--panel-bg-color);
+            flex-grow: 1; overflow: auto; border: 1px solid var(--border-color);
+            border-radius: 8px; background-color: var(--panel-bg-color);
             box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
+        table { width: 100%; border-collapse: collapse; }
         th, td {
-            border: 1px solid var(--border-color);
-            padding: 10px 12px;
-            text-align: left;
-            white-space: nowrap; /* Essential for horizontal scrolling with many columns */
-            font-size: 0.95em;
+            border: 1px solid var(--border-color); padding: 10px 12px;
+            text-align: left; white-space: nowrap; font-size: 0.95em;
         }
-
         th {
-            background-color: var(--table-header-bg);
-            position: sticky; /* Sticky header */
-            top: 0;
-            z-index: 1;
-            font-weight: 600;
-            color: var(--text-color);
+            background-color: var(--table-header-bg); position: sticky; top: 0;
+            z-index: 1; font-weight: 600; color: var(--text-color);
         }
-        
-        tbody tr:nth-child(even) {
-            background-color: var(--bg-color);
-        }
-        tbody tr:hover {
-            background-color: var(--table-row-hover-bg);
-        }
+        tbody tr:nth-child(even) { background-color: var(--bg-color); }
+        tbody tr:hover { background-color: var(--table-row-hover-bg); }
 
         .status-bar {
-            padding: 10px 15px;
-            background-color: var(--panel-bg-color);
-            border: 1px solid var(--border-color);
-            border-top: none;
-            text-align: left;
-            color: var(--text-muted-color);
-            font-size: 0.9em;
-            border-bottom-left-radius: 8px;
-            border-bottom-right-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-            flex-shrink: 0; /* Prevent status bar from shrinking */
+            padding: 10px 15px; background-color: var(--panel-bg-color);
+            border: 1px solid var(--border-color); border-top: none; text-align: left;
+            color: var(--text-muted-color); font-size: 0.9em;
+            border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05); flex-shrink: 0;
         }
          .credit-label {
-            margin-top: 15px;
-            padding: 8px;
-            text-align: center;
-            color: var(--text-muted-color);
-            font-size: 0.85em;
-            flex-shrink: 0;
+            margin-top: 15px; padding: 8px; text-align: center;
+            color: var(--text-muted-color); font-size: 0.85em; flex-shrink: 0;
          }
 
         /* --- Mobile Responsiveness --- */
         @media (max-width: 768px) {
             body {
-                flex-direction: column; /* Stack panels vertically */
-                height: auto; /* Allow body to grow with content */
-                font-size: 14px; /* Slightly smaller base font for mobile */
+                flex-direction: column; height: auto; font-size: 14px;
             }
 
             .controls-frame {
-                width: 100%; /* Full width */
-                box-sizing: border-box; /* Include padding in width calculation */
-                border-right: none; /* Remove side border */
-                border-bottom: 1px solid var(--border-color); /* Add bottom border */
-                max-height: 50vh; /* Limit height of controls, make it scrollable if content overflows */
-                /* overflow-y still auto from above */
-                box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Adjust shadow for bottom */
-                padding: 15px; /* Slightly reduced padding */
+                width: 100%; box-sizing: border-box; border-right: none;
+                border-bottom: 1px solid var(--border-color);
+                max-height: 45vh; /* Controls panel can take up to 45% of viewport height */
+                overflow-y: auto; /* THIS is the primary scroll for the whole controls panel on mobile */
+                box-shadow: 0 2px 5px rgba(0,0,0,0.05); padding: 15px;
+                /* flex-direction: column; is inherited */
             }
 
             .data-view-frame {
-                width: 100%;
-                box-sizing: border-box;
-                padding: 15px; /* Slightly reduced padding */
-                /* flex-grow: 1; Ensure it still tries to take available space if controls-frame is not max-height */
+                width: 100%; box-sizing: border-box; padding: 15px;
+                min-height: 50vh; /* Ensure data view has decent space */
+                 flex-grow: 1; /* Allow data view to take remaining space if controls are less than max-height */
             }
             
-            /* Ensure the flexible group for boolean filters still works well */
+            /* === Scrolling for Attribute Filters (Mobile) === */
             .control-group.flexible-group {
-                 min-height: 100px; /* Adjust min-height for mobile if needed */
+                 flex-grow: 0; /* Does not grow with flex, height is by content */
+                 min-height: auto; /* Reset min-height */
+                 overflow: visible; /* Content contributes to parent's scroll height */
             }
-
             #boolean-filters-container {
-                 padding-right: 5px; /* Reduce padding if scrollbar is thinner or absent */
+                 flex-grow: 0; /* Does not grow with flex */
+                 overflow-y: visible; /* NO separate scrollbar here, parent .controls-frame handles it */
+                 padding-right: 0; /* No dedicated scrollbar, so no padding needed */
             }
 
+            /* === Boolean Filter Item Styling (Mobile) === */
+            .boolean-filter-item {
+                flex-direction: column; /* Stack attribute label and radio group */
+                align-items: flex-start; /* Align items to the left */
+                padding: 2px 0;
+            }
+            .boolean-filter-item > label {
+                margin-bottom: 6px; /* Add space below attribute name label */
+                margin-right: 0; /* No right margin needed when stacked */
+            }
+            .radio-group {
+                white-space: normal; /* Allow radio options to wrap if needed on very small screens */
+                padding-left: 2px; /* Slight indent for radio group */
+            }
+             .radio-group label { margin-right: 10px; } /* Adjust spacing */
 
-            th, td {
-                padding: 8px 10px; /* Slightly less padding in table cells */
-                font-size: 0.9em; /* Slightly smaller font in table for mobile */
-            }
 
-            #csvFileInput {
-                padding: 12px; /* Make file input easier to tap */
-                font-size: 1em;
-            }
-            #csvFileInput::file-selector-button {
-                 padding: 12px;
-                 margin: -12px -12px -12px 10px;
-            }
+            th, td { padding: 8px 10px; font-size: 0.9em; }
+            #csvFileInput { padding: 12px; font-size: 1em; }
+            #csvFileInput::file-selector-button { padding: 12px; margin: -12px -12px -12px 10px; }
 
-            .radio-group label, .track-filter-item label {
-                margin-right: 10px; /* Adjust spacing */
-            }
-            .radio-group input[type="radio"], .track-filter-item input[type="checkbox"] {
+            .track-filter-item input[type="checkbox"],
+            .radio-group input[type="radio"] {
                 transform: scale(1.2); /* Make controls a bit larger for touch */
             }
-
-            .status-bar, .credit-label {
-                font-size: 0.85em;
-                padding: 8px 10px;
-            }
+            .status-bar, .credit-label { font-size: 0.85em; padding: 8px 10px; }
         }
         @media (max-width: 480px) {
-             /* Further adjustments for very small screens if needed */
-            .control-group legend {
-                font-size: 1em;
-            }
-            th, td {
-                padding: 6px 8px;
-                font-size: 0.85em;
-            }
+            .controls-frame { max-height: 50vh; } /* Allow slightly more for controls on very small screens */
+            .control-group legend { font-size: 1em; }
+            th, td { padding: 6px 8px; font-size: 0.85em; }
+            .boolean-filter-item > label { font-size: 0.95em; }
+            .radio-group label { font-size: 0.9em; }
         }
 
     </style>
@@ -389,7 +362,10 @@
 
                 const attrLabel = document.createElement('label');
                 attrLabel.textContent = `${attrName}:`;
-                attrLabel.htmlFor = `bool-filter-${csvColIdx}-TRUE`;
+                // For accessibility, the main label for the attribute should point to the first radio.
+                // However, since the label is now visually distinct and side-by-side (on desktop),
+                // this direct association is less critical than each radio having its own label.
+                // We'll keep it simple: attrLabel is for the attribute name.
                 itemFrame.appendChild(attrLabel);
 
                 const radioGroup = document.createElement('div');
@@ -507,19 +483,36 @@
             });
             
             const maxRequiredIdx = Math.max(
-                0, // Ensure it's at least 0
-                TRACK_CSV_INDEX || 0, // Handle if TRACK_CSV_INDEX is undefined for some reason
+                0, 
+                TRACK_CSV_INDEX || 0, 
                 ...Object.keys(activeBooleanFilters).map(Number),
                 ...DESIRED_TREEVIEW_HEADERS.map(header => CSV_COLUMN_MAPPING[header] || 0)
             );
 
-
             let filteredCount = 0;
 
-            rawData.forEach((row, rowIndex) => {
-                 if (!row || row.length <= maxRequiredIdx && maxRequiredIdx > 0) { // Check if row is null/undefined
-                    return;
+            rawData.forEach((row) => {
+                 if (!row || (maxRequiredIdx > 0 && row.length <= maxRequiredIdx) ) { 
+                    // If maxRequiredIdx is 0 (e.g. no filters, no specific columns needed for display beyond defaults)
+                    // then row.length comparison might be tricky.
+                    // Let's assume if a row exists, it's processable unless specific columns are missing.
+                    // For simplicity, if any index needed is beyond row length, we skip.
+                    // This check is a bit broad. If a specific filter column is missing, it's handled later.
+                    // If a display column is missing, it will show as empty.
+                    // The main concern is an index out of bounds for a *filter*.
+                    let essentialIndexMissing = false;
+                    if (selectedTracks.size > 0 && (TRACK_CSV_INDEX === undefined || TRACK_CSV_INDEX >= row.length)) {
+                        essentialIndexMissing = true;
+                    }
+                    for (const csvColIdxStr in activeBooleanFilters) {
+                        if (parseInt(csvColIdxStr) >= row.length) {
+                            essentialIndexMissing = true;
+                            break;
+                        }
+                    }
+                    if (essentialIndexMissing) return; // Skip if essential filter column is missing
                 }
+
 
                 let passesTrack = true;
                 if (selectedTracks.size > 0) {
@@ -533,7 +526,7 @@
                     const csvColIdx = parseInt(csvColIdxStr);
                     const filterValue = activeBooleanFilters[csvColIdx]; 
 
-                    if (csvColIdx >= row.length) {
+                    if (csvColIdx >= row.length) { // Should be caught above, but defensive check
                         passesBool = false;
                         break;
                     }
