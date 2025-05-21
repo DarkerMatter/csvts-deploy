@@ -1,37 +1,570 @@
 <!DOCTYPE html>
-
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>NGINX on Railway</title>
-    <meta name="description" content="Choo Choo!" />
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TT CSV Viewer</title>
+    <style>
+        :root {
+            --bg-color: #f8f9fa;
+            --panel-bg-color: #ffffff;
+            --border-color: #dee2e6;
+            --text-color: #212529;
+            --text-muted-color: #6c757d;
+            --primary-color: #007bff;
+            --primary-hover-color: #0056b3;
+            --table-header-bg: #e9ecef;
+            --table-row-hover-bg: #f1f3f5;
+            --input-focus-border: #80bdff;
+            --input-focus-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
 
-    <link rel="icon" href="/favicon.ico" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+        body {
+            font-family: var(--font-family);
+            display: flex;
+            height: 100vh; /* Full viewport height for desktop layout */
+            margin: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            font-size: 15px;
+        }
 
-    <link rel="stylesheet" href="/styles.css?v=1.0" />
-  </head>
+        .controls-frame {
+            width: 300px;
+            padding: 20px;
+            background-color: var(--panel-bg-color);
+            overflow-y: auto; /* For controls panel if its content exceeds its height */
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+            flex-shrink: 0; /* Prevent controls frame from shrinking */
+        }
 
-  <body>
-    <main>
-      <img
-        src="https://railway.app/brand/logo-light.svg"
-        alt="Railway logo"
-        class="logo"
-      />
+        .data-view-frame {
+            flex-grow: 1;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* Crucial for internal table scrolling */
+        }
 
-      <h1>NGINX on Railway</h1>
+        .control-group {
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            background-color: var(--panel-bg-color);
+        }
 
-      <p>
-        Choo Choo! This is an example of an NGINX static site running on
-        Railway.
-        <a
-          href="https://github.com/railwayapp/starters/tree/master/examples/nginx"
-          >View source</a
-        >.
-      </p>
-    </main>
+        .control-group legend {
+            font-weight: 600;
+            font-size: 1.1em;
+            padding: 0 8px;
+            margin-left: 10px;
+            color: var(--primary-color);
+        }
 
-    <script src="/script.js"></script>
-  </body>
+        #csvFileInput {
+            display: block;
+            width: 100%;
+            padding: 10px 12px; /* Slightly more padding */
+            margin-bottom: 10px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            background-color: white;
+            cursor: pointer;
+            transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+            font-size: 0.95em;
+        }
+        #csvFileInput:hover {
+            border-color: #adb5bd;
+        }
+        #csvFileInput::file-selector-button {
+            padding: 10px 12px;
+            margin: -10px -12px -10px 10px;
+            border: none;
+            border-left: 1px solid var(--border-color);
+            background-color: var(--table-header-bg);
+            color: var(--text-color);
+            cursor: pointer;
+            transition: background-color 0.15s ease-in-out;
+        }
+        #csvFileInput::file-selector-button:hover {
+            background-color: #ced4da;
+        }
+
+        .track-filter-item,
+        .boolean-filter-item {
+            margin-bottom: 12px;
+        }
+
+        .boolean-filter-item > label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: var(--text-muted-color);
+        }
+
+        .radio-group label, .track-filter-item label {
+            margin-left: 5px;
+            margin-right: 15px;
+            font-weight: normal;
+            cursor: pointer;
+            vertical-align: middle;
+            line-height: 1.5; /* Improved touch friendliness */
+        }
+        .radio-group input[type="radio"], .track-filter-item input[type="checkbox"] {
+            margin-right: 4px; /* Increased spacing */
+            cursor: pointer;
+            vertical-align: middle;
+            accent-color: var(--primary-color);
+            transform: scale(1.1); /* Slightly larger controls */
+        }
+        .radio-group input[type="radio"]:focus, .track-filter-item input[type="checkbox"]:focus {
+            outline: 2px solid var(--input-focus-border);
+            outline-offset: 1px;
+        }
+
+        /* This fieldset grows to take available space in controls-frame */
+        .control-group.flexible-group {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 150px; /* Ensure it has some minimum height */
+        }
+        #boolean-filters-container {
+            flex-grow: 1; /* Takes available space within its parent fieldset */
+            overflow-y: auto;
+            padding-right: 10px; /* Space for scrollbar */
+        }
+        #boolean-filters-container::-webkit-scrollbar { width: 8px; }
+        #boolean-filters-container::-webkit-scrollbar-track { background: var(--bg-color); border-radius: 4px; }
+        #boolean-filters-container::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 4px; }
+        #boolean-filters-container::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+
+        .table-container {
+            flex-grow: 1; /* Takes available space in data-view-frame */
+            overflow: auto; /* This is key for table scrolling */
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            background-color: var(--panel-bg-color);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            border: 1px solid var(--border-color);
+            padding: 10px 12px;
+            text-align: left;
+            white-space: nowrap; /* Essential for horizontal scrolling with many columns */
+            font-size: 0.95em;
+        }
+
+        th {
+            background-color: var(--table-header-bg);
+            position: sticky; /* Sticky header */
+            top: 0;
+            z-index: 1;
+            font-weight: 600;
+            color: var(--text-color);
+        }
+        
+        tbody tr:nth-child(even) {
+            background-color: var(--bg-color);
+        }
+        tbody tr:hover {
+            background-color: var(--table-row-hover-bg);
+        }
+
+        .status-bar {
+            padding: 10px 15px;
+            background-color: var(--panel-bg-color);
+            border: 1px solid var(--border-color);
+            border-top: none;
+            text-align: left;
+            color: var(--text-muted-color);
+            font-size: 0.9em;
+            border-bottom-left-radius: 8px;
+            border-bottom-right-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            flex-shrink: 0; /* Prevent status bar from shrinking */
+        }
+         .credit-label {
+            margin-top: 15px;
+            padding: 8px;
+            text-align: center;
+            color: var(--text-muted-color);
+            font-size: 0.85em;
+            flex-shrink: 0;
+         }
+
+        /* --- Mobile Responsiveness --- */
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column; /* Stack panels vertically */
+                height: auto; /* Allow body to grow with content */
+                font-size: 14px; /* Slightly smaller base font for mobile */
+            }
+
+            .controls-frame {
+                width: 100%; /* Full width */
+                box-sizing: border-box; /* Include padding in width calculation */
+                border-right: none; /* Remove side border */
+                border-bottom: 1px solid var(--border-color); /* Add bottom border */
+                max-height: 50vh; /* Limit height of controls, make it scrollable if content overflows */
+                /* overflow-y still auto from above */
+                box-shadow: 0 2px 5px rgba(0,0,0,0.05); /* Adjust shadow for bottom */
+                padding: 15px; /* Slightly reduced padding */
+            }
+
+            .data-view-frame {
+                width: 100%;
+                box-sizing: border-box;
+                padding: 15px; /* Slightly reduced padding */
+                /* flex-grow: 1; Ensure it still tries to take available space if controls-frame is not max-height */
+            }
+            
+            /* Ensure the flexible group for boolean filters still works well */
+            .control-group.flexible-group {
+                 min-height: 100px; /* Adjust min-height for mobile if needed */
+            }
+
+            #boolean-filters-container {
+                 padding-right: 5px; /* Reduce padding if scrollbar is thinner or absent */
+            }
+
+
+            th, td {
+                padding: 8px 10px; /* Slightly less padding in table cells */
+                font-size: 0.9em; /* Slightly smaller font in table for mobile */
+            }
+
+            #csvFileInput {
+                padding: 12px; /* Make file input easier to tap */
+                font-size: 1em;
+            }
+            #csvFileInput::file-selector-button {
+                 padding: 12px;
+                 margin: -12px -12px -12px 10px;
+            }
+
+            .radio-group label, .track-filter-item label {
+                margin-right: 10px; /* Adjust spacing */
+            }
+            .radio-group input[type="radio"], .track-filter-item input[type="checkbox"] {
+                transform: scale(1.2); /* Make controls a bit larger for touch */
+            }
+
+            .status-bar, .credit-label {
+                font-size: 0.85em;
+                padding: 8px 10px;
+            }
+        }
+        @media (max-width: 480px) {
+             /* Further adjustments for very small screens if needed */
+            .control-group legend {
+                font-size: 1em;
+            }
+            th, td {
+                padding: 6px 8px;
+                font-size: 0.85em;
+            }
+        }
+
+    </style>
+</head>
+<body>
+    <div class="controls-frame">
+        <fieldset class="control-group">
+            <legend>File</legend>
+            <input type="file" id="csvFileInput" accept=".csv" title="Load CSV File">
+        </fieldset>
+
+        <fieldset class="control-group">
+            <legend>Track Filters</legend>
+            <div id="trackFiltersContainer">
+                </div>
+        </fieldset>
+
+        <fieldset class="control-group flexible-group">
+            <legend>Attribute Filters</legend>
+            <div id="boolean-filters-container">
+                </div>
+        </fieldset>
+    </div>
+
+    <div class="data-view-frame">
+        <div class="table-container">
+            <table id="csvTable">
+                <thead>
+                    <tr id="csvHeaderRow"></tr>
+                </thead>
+                <tbody id="csvBody"></tbody>
+            </table>
+        </div>
+        <div id="statusBar" class="status-bar">Load a CSV file to begin.</div>
+        <div class="credit-label">Made by EMN3 Shepherd, D.N.</div>
+    </div>
+
+    <script>
+        // --- Configuration (from Python script) ---
+        const DESIRED_TREEVIEW_HEADERS = [
+            "TRACK", "BEQ/ADDRESS", "PHONE NUMBER", "NFAS CLASS", "NAME",
+            "MUSTER", "OFFGOING", "ONGOING", "WATCH", "POWER PREP", "LEAVE",
+            "FLDC", "SUP", "DRIVER", "COLORS", "LLD", "Student Helper",
+            "MARRIED", "PMKEE"
+        ];
+
+        const CSV_COLUMN_MAPPING = {
+            "TRACK": 2, "BEQ/ADDRESS": 4, "PHONE NUMBER": 5, "NFAS CLASS": 6, "NAME": 7,
+            "MUSTER": 8, "OFFGOING": 9, "ONGOING": 10, "WATCH": 11, "POWER PREP": 12,
+            "LEAVE": 13, "FLDC": 14, "SUP": 15, "DRIVER": 16, "COLORS": 17,
+            "LLD": 19, "Student Helper": 22, "MARRIED": 23, "PMKEE": 24
+        };
+
+        const BOOLEAN_ATTRIBUTES_FOR_FILTERS = [
+            "MUSTER", "OFFGOING", "ONGOING", "WATCH", "POWER PREP", "LEAVE",
+            "FLDC", "SUP", "DRIVER", "COLORS", "LLD", "Student Helper",
+            "MARRIED", "PMKEE"
+        ];
+
+        const TRACK_CSV_INDEX = CSV_COLUMN_MAPPING["TRACK"];
+
+        // --- Global State ---
+        let rawData = []; // To store rows from CSV (as arrays of strings)
+
+        // --- DOM Elements ---
+        const csvFileInput = document.getElementById('csvFileInput');
+        const trackFiltersContainer = document.getElementById('trackFiltersContainer');
+        const booleanFiltersContainer = document.getElementById('boolean-filters-container');
+        const csvHeaderRow = document.getElementById('csvHeaderRow');
+        const csvBody = document.getElementById('csvBody');
+        const statusBar = document.getElementById('statusBar');
+
+        // --- Initialization ---
+        document.addEventListener('DOMContentLoaded', () => {
+            setupControls();
+            renderTableHeaders();
+            csvFileInput.addEventListener('change', handleFileLoad);
+            applyFilters(); // Initial empty render
+        });
+
+        function setupControls() {
+            // Track Filters
+            ['A', 'B', 'C', 'D'].forEach(trackVal => {
+                const id = `track-${trackVal}`;
+                const div = document.createElement('div');
+                div.className = 'track-filter-item';
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.id = id;
+                cb.value = trackVal;
+                cb.addEventListener('change', applyFilters);
+                const label = document.createElement('label');
+                label.htmlFor = id;
+                label.textContent = trackVal;
+                div.appendChild(cb);
+                div.appendChild(label);
+                trackFiltersContainer.appendChild(div);
+            });
+
+            // Boolean Attribute Filters
+            BOOLEAN_ATTRIBUTES_FOR_FILTERS.forEach(attrName => {
+                if (!CSV_COLUMN_MAPPING[attrName]) {
+                    console.warn(`Attribute '${attrName}' for filter not found in CSV_COLUMN_MAPPING. Skipping filter.`);
+                    return;
+                }
+                const csvColIdx = CSV_COLUMN_MAPPING[attrName];
+
+                const itemFrame = document.createElement('div');
+                itemFrame.className = 'boolean-filter-item';
+
+                const attrLabel = document.createElement('label');
+                attrLabel.textContent = `${attrName}:`;
+                attrLabel.htmlFor = `bool-filter-${csvColIdx}-TRUE`;
+                itemFrame.appendChild(attrLabel);
+
+                const radioGroup = document.createElement('div');
+                radioGroup.className = 'radio-group';
+
+                ['TRUE', 'FALSE', 'ANY'].forEach(val => {
+                    const radioId = `bool-filter-${csvColIdx}-${val}`;
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = `bool-filter-${csvColIdx}`;
+                    radio.id = radioId;
+                    radio.value = val;
+                    if (val === 'ANY') radio.checked = true;
+                    radio.addEventListener('change', applyFilters);
+
+                    const radioLabel = document.createElement('label');
+                    radioLabel.htmlFor = radioId;
+                    radioLabel.textContent = val.charAt(0) + val.slice(1).toLowerCase();
+
+                    radioGroup.appendChild(radio);
+                    radioGroup.appendChild(radioLabel);
+                });
+                itemFrame.appendChild(radioGroup);
+                booleanFiltersContainer.appendChild(itemFrame);
+            });
+        }
+
+        function renderTableHeaders() {
+            csvHeaderRow.innerHTML = '';
+            DESIRED_TREEVIEW_HEADERS.forEach(headerText => {
+                const th = document.createElement('th');
+                th.textContent = headerText;
+                csvHeaderRow.appendChild(th);
+            });
+        }
+
+        function simpleCSVParser(csvText) {
+            const lines = csvText.trim().split(/\r\n|\n/);
+            const dataLines = lines.slice(2);
+            return dataLines.map(line => {
+                const row = [];
+                let currentField = '';
+                let inQuotes = false;
+                for (let i = 0; i < line.length; i++) {
+                    const char = line[i];
+                    if (char === '"') {
+                        if (inQuotes && i + 1 < line.length && line[i+1] === '"') {
+                            currentField += '"';
+                            i++;
+                        } else {
+                            inQuotes = !inQuotes;
+                        }
+                    } else if (char === ',' && !inQuotes) {
+                        row.push(currentField.trim());
+                        currentField = '';
+                    } else {
+                        currentField += char;
+                    }
+                }
+                row.push(currentField.trim());
+                return row;
+            });
+        }
+
+        function handleFileLoad(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    rawData = simpleCSVParser(e.target.result);
+                     if (rawData.length === 0 && e.target.result.trim().split(/\r\n|\n/).length <=2) {
+                        alert("CSV file has fewer than 3 data rows or is empty after header removal.");
+                         rawData = [];
+                    }
+                    applyFilters();
+                    statusBar.textContent = `Loaded ${rawData.length} data rows from ${file.name}`;
+                } catch (error) {
+                    console.error("Failed to load CSV:", error);
+                    alert(`Failed to load CSV: ${error.message}`);
+                    rawData = [];
+                    applyFilters();
+                    statusBar.textContent = "Error loading CSV.";
+                }
+            };
+            reader.onerror = () => {
+                alert('Error reading file.');
+                statusBar.textContent = "Error reading file.";
+            }
+            reader.readAsText(file);
+        }
+
+        function applyFilters() {
+            csvBody.innerHTML = '';
+
+            if (rawData.length === 0) {
+                statusBar.textContent = rawData.length > 0 ? "No matching data for current filters." : "No data loaded or data is empty.";
+                return;
+            }
+
+            const selectedTracks = new Set();
+            document.querySelectorAll('#trackFiltersContainer input[type="checkbox"]:checked').forEach(cb => {
+                selectedTracks.add(cb.value.toUpperCase());
+            });
+
+            const activeBooleanFilters = {};
+            document.querySelectorAll('#boolean-filters-container .radio-group').forEach(group => {
+                const checkedRadio = group.querySelector('input[type="radio"]:checked');
+                if (checkedRadio && checkedRadio.value !== 'ANY') {
+                    const nameParts = checkedRadio.name.split('-');
+                    const csvColIdx = parseInt(nameParts[2]);
+                    activeBooleanFilters[csvColIdx] = (checkedRadio.value === "TRUE");
+                }
+            });
+            
+            const maxRequiredIdx = Math.max(
+                0, // Ensure it's at least 0
+                TRACK_CSV_INDEX || 0, // Handle if TRACK_CSV_INDEX is undefined for some reason
+                ...Object.keys(activeBooleanFilters).map(Number),
+                ...DESIRED_TREEVIEW_HEADERS.map(header => CSV_COLUMN_MAPPING[header] || 0)
+            );
+
+
+            let filteredCount = 0;
+
+            rawData.forEach((row, rowIndex) => {
+                 if (!row || row.length <= maxRequiredIdx && maxRequiredIdx > 0) { // Check if row is null/undefined
+                    return;
+                }
+
+                let passesTrack = true;
+                if (selectedTracks.size > 0) {
+                    const trackValue = (row[TRACK_CSV_INDEX] || "").trim().toUpperCase();
+                    passesTrack = selectedTracks.has(trackValue);
+                }
+                if (!passesTrack) return;
+
+                let passesBool = true;
+                for (const csvColIdxStr in activeBooleanFilters) {
+                    const csvColIdx = parseInt(csvColIdxStr);
+                    const filterValue = activeBooleanFilters[csvColIdx]; 
+
+                    if (csvColIdx >= row.length) {
+                        passesBool = false;
+                        break;
+                    }
+                    const cellValue = (row[csvColIdx] || "").trim().toUpperCase();
+                    if ((cellValue === "TRUE") !== filterValue) {
+                        passesBool = false;
+                        break;
+                    }
+                }
+                if (!passesBool) return;
+
+                const displayValues = [];
+                DESIRED_TREEVIEW_HEADERS.forEach(headerName => {
+                    const csvIdx = CSV_COLUMN_MAPPING[headerName];
+                    const rawCellVal = (csvIdx !== undefined && csvIdx < row.length) ? row[csvIdx] : '';
+                    displayValues.push(rawCellVal);
+                });
+                
+                const tr = document.createElement('tr');
+                displayValues.forEach(cellText => {
+                    const td = document.createElement('td');
+                    td.textContent = cellText;
+                    tr.appendChild(td);
+                });
+                csvBody.appendChild(tr);
+                filteredCount++;
+            });
+
+            statusBar.textContent = `Showing ${filteredCount} of ${rawData.length} rows.`;
+        }
+
+    </script>
+</body>
 </html>
